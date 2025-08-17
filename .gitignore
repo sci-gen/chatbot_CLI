@@ -19,3 +19,13 @@ logs/
 
 # macOS
 .DS_Store
+# ignore virtualenv
+.venv/
+# logs
+logs/
+*.log
+chat_log.jsonl
+# python bytecode
+__pycache__/
+*.py[cod]
+.env
