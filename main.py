@@ -18,6 +18,9 @@ import re
 from typing import Any, List
 
 from app.ollama_llm import OllamaLLM
+from app.prompts import render_conversation_prompt
+from app.memory import ChatMemoryAdapter
+from app.logger import write_chat_log
 
 
 def build_llm(
@@ -44,9 +47,9 @@ def run_cli(model: Optional[str] = None, temperature: Optional[float] = None) ->
     """対話型 CLI を起動する。
 
     ユーザ入力を受け取り、OllamaLLM に投げて応答を表示する。
-    最低限のループのみを提供します。
     """
     llm = build_llm(model=model, temperature=temperature)
+    memory = ChatMemoryAdapter()
     print("対話型 CLI を開始します。終了するには /exit または Ctrl-C を押してください。\n")
     try:
         while True:
@@ -62,12 +65,19 @@ def run_cli(model: Optional[str] = None, temperature: Optional[float] = None) ->
                 print("終了します。")
                 break
 
+            # 履歴をテンプレートに組み込み
+            history_text = memory.load_history_text()
+            prompt = render_conversation_prompt(user_input, history_text)
+
             try:
                 # 生ログ（raw_lines）も取得する
-                reply, raw_lines = llm.generate_with_raw(user_input)
-                # ログ出力を専用関数へ委譲
+                reply, raw_lines = llm.generate_with_raw(prompt)
+                # メモリに記録（失敗したら警告）
+                saved = memory.add_interaction(user_input, reply)
+                if not saved:
+                    print("警告: メモリへの保存に失敗しました。")
                 try:
-                    write_chat_log(llm, user_input, raw_lines)
+                    write_chat_log(getattr(llm, "model", None), prompt, raw_lines)
                 except Exception:
                     # ログ失敗は致命的でない
                     pass
@@ -97,12 +107,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def merge_raw_lines(raw_lines: List[Any]) -> str:
-    """raw_lines (parsed objects or raw strings) から連続する 'response' を結合して1つの文字列を返す。
-
-    単純な方針:
-      - dict で 'response' キーがあればその値を順に連結
-      - 文字列はそのまま末尾に追加
-    """
+    """raw_lines (parsed objects or raw strings) から連続する 'response' を結合して1つの文字列を返す。"""
     parts: List[str] = []
     for item in raw_lines:
         try:
