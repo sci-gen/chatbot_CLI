@@ -1,0 +1,21 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtualenv
+.venv/
+
+# Logs
+logs/
+*.log
+
+# Editor
+.vscode/
+*.swp
+
+# Env files
+.env
+
+# macOS
+.DS_Store
